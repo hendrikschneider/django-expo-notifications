@@ -17,6 +17,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "rest_framework",
+    "drf_spectacular",
 ]
 
 MIDDLEWARE = [
@@ -86,3 +88,31 @@ CELERY_BROKER_URL = environ.get("CELERY_BROKER_URL")
 
 # Optional advanced settings
 EXPO_NOTIFICATIONS_TOKEN = environ.get("EXPO_NOTIFICATIONS_TOKEN")
+
+# Django REST Framework settings
+REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+# drf-spectacular settings
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Django Expo Notifications API",
+    "DESCRIPTION": (
+        "API for managing Expo push notification tokens. "
+        "Register device push tokens when users install your app, "
+        "and remove them when users log out or uninstall the app."
+    ),
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "CONTACT": {
+        "name": "django-expo-notifications",
+        "url": "https://github.com/DoctorJohn/django-expo-notifications",
+    },
+    "LICENSE": {"name": "MIT"},
+    "TAGS": [
+        {
+            "name": "devices",
+            "description": "Manage Expo push tokens for the authenticated user.",
+        },
+    ],
+}
