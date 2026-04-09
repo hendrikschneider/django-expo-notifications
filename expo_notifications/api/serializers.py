@@ -11,7 +11,7 @@ class DeviceSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         user = self.context["request"].user
-        device, _ = Device.objects.update_or_create(
+        device, _created = Device.objects.update_or_create(
             user=user,
             push_token=validated_data["push_token"],
             defaults={
