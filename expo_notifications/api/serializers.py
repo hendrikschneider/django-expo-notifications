@@ -11,12 +11,15 @@ class DeviceSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         user = self.context["request"].user
+        defaults = {
+            "is_active": True,
+        }
+        if "lang" in validated_data:
+            defaults["lang"] = validated_data["lang"]
+
         device, _created = Device.objects.update_or_create(
             user=user,
             push_token=validated_data["push_token"],
-            defaults={
-                "lang": validated_data.get("lang", ""),
-                "is_active": True,
-            },
+            defaults=defaults,
         )
         return device
