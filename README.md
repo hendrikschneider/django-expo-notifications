@@ -31,6 +31,8 @@ This project uses [Celery](https://github.com/celery/celery) and the [Expo Serve
 - [x] Automatically retry checking receipts in case of a failure
 - [x] Automatically flag inactive devices
 - [x] Django admin actions for sending messages and checking receipts
+- [x] REST API endpoints for managing Expo push tokens (optional, requires DRF)
+- [x] OpenAPI schema with Swagger UI and ReDoc (optional, requires drf-spectacular)
 
 ## Installation
 
@@ -38,7 +40,20 @@ This project uses [Celery](https://github.com/celery/celery) and the [Expo Serve
 pip install django-expo-notifications
 ```
 
-After installing the Django app, add it to your project's `INSTALLED_APPS` setting:
+### Optional: REST API support
+
+To use the built-in REST API for registering push tokens from mobile apps, install the
+optional `api` extras:
+
+```sh
+pip install "django-expo-notifications[api]"
+```
+
+This pulls in [Django REST Framework](https://www.django-rest-framework.org/) and
+[drf-spectacular](https://drf-spectacular.readthedocs.io/) for OpenAPI schema generation.
+
+After installing the Django app, add it to your project's `INSTALLED_APPS` setting.
+If you also want to use the REST API, add `rest_framework` and `drf_spectacular` as well:
 
 ```python
 INSTALLED_APPS = [
@@ -49,6 +64,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    # Optional: only needed for the REST API
+    "rest_framework",
+    "drf_spectacular",
 ]
 ```
 
@@ -228,6 +246,100 @@ single_message.send()
 multiple_messages = Message.objects.all()
 multiple_messages.send()
 ```
+
+## REST API
+
+When the `api` extra is installed, `expo_notifications` provides DRF endpoints for
+registering and removing push tokens.  This is the recommended way for mobile apps to
+keep the server in sync with the current device state.
+
+### Wiring up the URLs
+
+Include the API URLs and the OpenAPI/ReDoc views in your project's URL configuration:
+
+```python
+from django.urls import include, path
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
+
+urlpatterns = [
+    # ... your other url patterns ...
+    path("api/", include("expo_notifications.api.urls")),
+    # OpenAPI schema + interactive docs (optional but recommended)
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("api/schema/swagger-ui/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
+]
+```
+
+Also configure DRF to use the drf-spectacular `AutoSchema`:
+
+```python
+REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+```
+
+### Endpoints
+
+| Method   | URL                   | Description                                        |
+|----------|-----------------------|----------------------------------------------------|
+| `GET`    | `/api/devices/`       | List all push tokens for the authenticated user.   |
+| `POST`   | `/api/devices/`       | Register a new push token (or reactivate one).     |
+| `DELETE` | `/api/devices/{id}/`  | Remove a registered push token.                    |
+
+All endpoints require authentication.  Use your project's standard DRF
+authentication/permission classes (e.g. `SessionAuthentication`,
+`TokenAuthentication`, or any JWT library).
+
+### Registering a device
+
+When a user installs your app on a new device, call the register endpoint with the
+Expo push token obtained from the Expo SDK:
+
+```http
+POST /api/devices/
+Authorization: Token <your-auth-token>
+Content-Type: application/json
+
+{
+    "push_token": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]",
+    "lang": "en"
+}
+```
+
+If the token already exists for the user, it is reactivated and its language is updated.
+The response is the saved device object:
+
+```json
+{
+    "id": 1,
+    "push_token": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]",
+    "lang": "en",
+    "date_registered": "2024-01-01T00:00:00Z",
+    "is_active": true
+}
+```
+
+### Removing a device
+
+When a user logs out or uninstalls the app, delete the token to stop sending
+notifications to that device:
+
+```http
+DELETE /api/devices/1/
+Authorization: Token <your-auth-token>
+```
+
+A successful delete returns `204 No Content`.
+
+### Interactive API documentation
+
+Once you have wired up the schema URLs described above, you can explore the full API
+interactively:
+
+- **ReDoc** — `GET /api/redoc/`
+- **Swagger UI** — `GET /api/schema/swagger-ui/`
+- **Raw OpenAPI schema** — `GET /api/schema/`
 
 ## Django Admin Actions
 
